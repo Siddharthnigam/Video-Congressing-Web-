@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LiveKit Test</title>
+    <script src="https://unpkg.com/livekit-client@2.15.6/dist/livekit-client.umd.js"></script>
+</head>
+<body>
+    <h1>LiveKit Connection Test</h1>
+    <button onclick="testConnection()">Test Connection</button>
+    <div id="status"></div>
+    
+    <script>
+        async function testConnection() {
+            const status = document.getElementById('status');
+            status.innerHTML = 'Testing connection...';
+            
+            try {
+                // Test with your actual LiveKit Cloud URL and a test token
+                const url = 'wss://video-call-wf27naz0.livekit.cloud';
+                const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJBUEk0OVc0R2dQdnZ6OWQiLCJzdWIiOiJ0ZXN0LXVzZXIiLCJpYXQiOjE3NTc0MDcyMDAsImV4cCI6MTc1NzQxMDgwMCwidmlkZW8iOnsicm9vbSI6InRlc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlLCJjYW5QdWJsaXNoIjp0cnVlLCJjYW5TdWJzY3JpYmUiOnRydWV9fQ.test';
+                
+                const room = new LiveKitClient.Room();
+                
+                room.on('connected', () => {
+                    status.innerHTML = '✅ Connected successfully!';
+                });
+                
+                room.on('disconnected', () => {
+                    status.innerHTML = '❌ Disconnected';
+                });
+                
+                await room.connect(url, token);
+                
+            } catch (error) {
+                status.innerHTML = `❌ Error: ${error.message}`;
+                console.error('Connection error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

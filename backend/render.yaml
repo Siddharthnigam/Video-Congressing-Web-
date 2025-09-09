@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: video-call-backend
+    env: python
+    buildCommand: "pip install -r requirements.txt && python manage.py collectstatic --noinput && python manage.py migrate"
+    startCommand: "gunicorn videomeet.wsgi:application"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DJANGO_SETTINGS_MODULE
+        value: videomeet.settings
+      - key: DEBUG
+        value: "False"
+      - key: LIVEKIT_API_KEY
+        value: API49W4GgPvvz9d
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: LIVEKIT_URL
+        value: wss://video-call-wf27naz0.livekit.cloud
+      - key: DATABASE_URL
+        fromDatabase:
+          name: video-call-db
+          property: connectionString
+
+databases:
+  - name: video-call-db
+    databaseName: videocall
+    user: videocall
