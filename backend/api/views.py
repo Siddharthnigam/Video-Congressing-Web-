@@ -8,6 +8,20 @@ import time
 from .models import Room, Participant, ChatMessage, AttentionStats
 from .serializers import RoomSerializer, ParticipantSerializer, ChatMessageSerializer, AttentionStatsSerializer
 
+@api_view(['GET'])
+def api_root(request):
+    return Response({
+        'message': 'Video Call API is running',
+        'endpoints': {
+            'create_room': '/api/rooms/create/',
+            'join_room': '/api/rooms/{room_id}/join/',
+            'get_participants': '/api/rooms/{room_id}/participants/',
+            'get_messages': '/api/rooms/{room_id}/messages/',
+            'send_message': '/api/rooms/{room_id}/messages/send/',
+            'update_attention': '/api/rooms/{room_id}/attention/'
+        }
+    })
+
 def generate_livekit_token(room_id, participant_name):
     # Generate a proper JWT token for LiveKit
     api_key = getattr(settings, 'LIVEKIT_API_KEY', 'devkey')
