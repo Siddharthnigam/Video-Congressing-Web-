@@ -109,7 +109,7 @@ const MeetingRoom = () => {
   };
 
   // Show loading state while connecting
-  if (isConnecting || connectionState === 'connecting') {
+  if ((isConnecting || connectionState === 'connecting') && !isConnected) {
     return (
       <div className="h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center text-white">
