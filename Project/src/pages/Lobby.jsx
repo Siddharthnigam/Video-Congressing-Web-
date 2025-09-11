@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Camera, Mic, Settings } from 'lucide-react';
+import { Camera, Mic, Settings, Plus, Users } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import Button from '../components/Button';
 import { useMediaDevices } from '../hooks/useMediaDevices';
@@ -19,9 +19,19 @@ const Lobby = () => {
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [action, setAction] = useState('create'); // 'create' or 'join'
   
   const videoRef = useRef(null);
-  const isCreate = searchParams.get('create') === 'true';
+
+  // Get action from URL params
+  useEffect(() => {
+    const actionParam = searchParams.get('action');
+    if (actionParam === 'join') {
+      setAction('join');
+    } else {
+      setAction('create');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const initializeMedia = async () => {
@@ -72,7 +82,7 @@ const Lobby = () => {
       return;
     }
     
-    if (!isCreate && !roomId.trim()) {
+    if (action === 'join' && !roomId.trim()) {
       alert('Please enter a room ID');
       return;
     }
@@ -81,19 +91,17 @@ const Lobby = () => {
     try {
       let response;
       
-      if (isCreate) {
+      if (action === 'create') {
         response = await api.createRoom(name, 'Meeting Room');
         console.log('Create room response:', response);
         joinRoom(response.room_id, name, true, response.livekit_url, response.token);
       } else {
-        // Ensure room ID has the correct format
         const formattedRoomId = roomId.startsWith('room-') ? roomId : `room-${roomId}`;
         response = await api.joinRoom(formattedRoomId, name);
         console.log('Join room response:', response);
         joinRoom(formattedRoomId, name, false, response.livekit_url, response.token);
       }
       
-      // Stop preview stream before navigating
       stopStream();
       navigate('/meeting');
     } catch (error) {
@@ -125,6 +133,34 @@ const Lobby = () => {
       <Navbar />
       
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        {/* Action Toggle */}
+        <div className="flex justify-center mb-8">
+          <div className="bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+            <button
+              onClick={() => setAction('create')}
+              className={`px-6 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${
+                action === 'create' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Meeting</span>
+            </button>
+            <button
+              onClick={() => setAction('join')}
+              className={`px-6 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-2 ${
+                action === 'join' 
+                  ? 'bg-green-600 text-white' 
+                  : 'text-gray-600 hover:text-green-600'
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              <span>Join Meeting</span>
+            </button>
+          </div>
+        </div>
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -132,7 +168,7 @@ const Lobby = () => {
         >
           <div className="p-8">
             <h1 className="text-2xl font-bold text-gray-900 mb-8 text-center">
-              {isCreate ? 'Create Meeting' : 'Join Meeting'}
+              {action === 'create' ? 'Create Meeting' : 'Join Meeting'}
             </h1>
             
             <div className="grid lg:grid-cols-2 gap-8">
@@ -208,7 +244,7 @@ const Lobby = () => {
                   />
                 </div>
                 
-                {!isCreate && (
+                {action === 'join' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Meeting ID
@@ -260,11 +296,11 @@ const Lobby = () => {
                 
                 <Button
                   onClick={handleJoinMeeting}
-                  className="w-full"
+                  className={`w-full ${action === 'create' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}
                   size="lg"
                   disabled={isLoading}
                 >
-                  {isLoading ? 'Connecting...' : (isCreate ? 'Create Meeting' : 'Join Now')}
+                  {isLoading ? 'Connecting...' : (action === 'create' ? 'Create Meeting' : 'Join Now')}
                 </Button>
               </div>
             </div>

@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   Mic, MicOff, Camera, CameraOff, Monitor, Phone, 
-  MessageSquare, Users, Settings, Loader 
+  MessageSquare, Users, Settings, Loader, AlertTriangle 
 } from 'lucide-react';
 import LiveKitVideoTile from '../components/LiveKitVideoTile';
 import Button from '../components/Button';
@@ -20,15 +20,48 @@ const MeetingRoom = () => {
     room, isConnected, participants, isAudioEnabled, isVideoEnabled, isScreenSharing, connectionState, error, localVideoTrack,
     connectToRoom, toggleAudio, toggleVideo, startScreenShare, stopScreenShare, leaveRoom: leaveWebRTC
   } = useWebRTC();
-  const {
-    isAttentionEnabled, attentionStats, showAttentionWarning,
-    toggleAttentionDetection, dismissAttentionWarning
-  } = useAttentionDetection();
 
   const [showHostPanel, setShowHostPanel] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [participantAttention, setParticipantAttention] = useState({});
+  const [distractedParticipants, setDistractedParticipants] = useState([]);
+  
+  const { isEnabled: isAttentionEnabled, status, confidence, lastChangeAt, toggleDetection, startDetection, stopDetection } = useAttentionDetection();
+
+  // Mock participant attention data
+  useEffect(() => {
+    if (!isAttentionEnabled || !participants.length) return;
+
+    const interval = setInterval(() => {
+      const newAttentionData = {};
+      const newDistracted = [];
+
+      participants.forEach(participant => {
+        const randomConfidence = Math.random();
+        const isDistracted = randomConfidence < 0.4;
+        
+        newAttentionData[participant.sid] = {
+          confidence: randomConfidence,
+          status: isDistracted ? 'distracted' : 'focused',
+          lastUpdate: Date.now()
+        };
+
+        if (isDistracted) {
+          newDistracted.push({
+            name: participant.name || participant.identity,
+            confidence: randomConfidence
+          });
+        }
+      });
+
+      setParticipantAttention(newAttentionData);
+      setDistractedParticipants(newDistracted);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [isAttentionEnabled, participants]);
 
   // Connect to LiveKit room on component mount
   useEffect(() => {
@@ -54,7 +87,6 @@ const MeetingRoom = () => {
       connectToLiveKit();
     }
     
-    // Prevent accidental page refresh
     const handleBeforeUnload = (e) => {
       e.preventDefault();
       e.returnValue = 'Are you sure you want to leave the meeting?';
@@ -82,6 +114,15 @@ const MeetingRoom = () => {
     };
     loadMessages();
   }, [roomId]);
+
+  // Start/stop attention detection based on video state
+  useEffect(() => {
+    if (isAttentionEnabled && localVideoTrack && isVideoEnabled) {
+      startDetection(localVideoTrack);
+    } else {
+      stopDetection();
+    }
+  }, [isAttentionEnabled, localVideoTrack, isVideoEnabled, startDetection, stopDetection]);
 
   const handleLeaveRoom = async () => {
     await leaveWebRTC();
@@ -138,17 +179,24 @@ const MeetingRoom = () => {
 
   return (
     <div className="h-screen bg-gray-900 flex flex-col">
-      <AttentionBanner
-        isVisible={showAttentionWarning}
-        onDismiss={dismissAttentionWarning}
-        message="Please focus on the meeting - you appear to be looking away"
-      />
-
       {/* Header */}
       <div className="bg-gray-800 px-6 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-white font-semibold">{roomName || 'Meeting Room'}</h1>
           <p className="text-gray-400 text-sm">Room ID: {roomId}</p>
+          {isAttentionEnabled && !isHost && (
+            <p className="text-yellow-400 text-xs">Attention: {status} | Confidence: {Math.round(confidence * 100)}%</p>
+          )}
+          
+          {/* Host Distraction Notifications */}
+          {isHost && isAttentionEnabled && distractedParticipants.length > 0 && (
+            <div className="flex items-center space-x-2 mt-1">
+              <AlertTriangle className="h-4 w-4 text-orange-400" />
+              <p className="text-orange-400 text-xs">
+                {distractedParticipants.length} participant{distractedParticipants.length > 1 ? 's' : ''} distracted
+              </p>
+            </div>
+          )}
         </div>
         {isHost && (
           <Button
@@ -160,6 +208,16 @@ const MeetingRoom = () => {
           </Button>
         )}
       </div>
+
+      {/* Small Corner Warning Banner - Only for non-host users */}
+      {!isHost && isAttentionEnabled && status === 'distracted' && (
+        <div className="fixed bottom-20 right-4 z-50 bg-red-500 text-white px-3 py-2 rounded-lg shadow-lg animate-pulse">
+          <div className="flex items-center space-x-2">
+            <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+            <span className="text-xs font-medium">👀 Focus!</span>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 flex">
         {/* Main Video Area */}
@@ -175,6 +233,15 @@ const MeetingRoom = () => {
             ))}
           </div>
         </div>
+{/* Small Corner Warning Banner - Only for non-host users */}
+{!isHost && isAttentionEnabled && status === 'distracted' && (
+  <div className="fixed bottom-20 right-4 z-50 bg-red-500 text-white px-3 py-2 rounded-lg shadow-lg animate-pulse">
+    <div className="flex items-center space-x-2">
+      <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+      <span className="text-xs font-medium">👀 Focus!</span>
+    </div>
+  </div>
+)}
 
         {/* Side Panels */}
         <AnimatePresence>
@@ -262,7 +329,7 @@ const MeetingRoom = () => {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm">Enable Detection</span>
                         <button
-                          onClick={toggleAttentionDetection}
+                          onClick={toggleDetection}
                           className={`w-10 h-6 rounded-full transition-colors ${
                             isAttentionEnabled ? 'bg-blue-500' : 'bg-gray-300'
                           }`}
@@ -274,11 +341,52 @@ const MeetingRoom = () => {
                       </div>
                       {isAttentionEnabled && (
                         <div className="text-sm text-gray-600">
-                          <p>Attention Score: {attentionStats.attentionScore}%</p>
-                          <p>Focus Time: {Math.floor(attentionStats.focusedTime / 60)}m {attentionStats.focusedTime % 60}s</p>
+                          <p>Your Status: {status}</p>
+                          <p>Your Confidence: {Math.round(confidence * 100)}%</p>
                         </div>
                       )}
                     </div>
+
+                    {/* Participant Attention Monitoring */}
+                    {isAttentionEnabled && (
+                      <div>
+                        <h3 className="font-medium mb-2">Participant Attention</h3>
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                          {participants.map(participant => {
+                            const attention = participantAttention[participant.sid];
+                            return (
+                              <div key={participant.sid} className="flex items-center justify-between p-2 bg-gray-50 rounded text-xs">
+                                <span className="font-medium">
+                                  {participant.name || participant.identity}
+                                </span>
+                                <div className="flex items-center space-x-2">
+                                  <div className={`w-2 h-2 rounded-full ${
+                                    attention?.status === 'focused' ? 'bg-green-500' : 'bg-red-500'
+                                  }`} />
+                                  <span className={attention?.status === 'focused' ? 'text-green-600' : 'text-red-600'}>
+                                    {attention ? Math.round(attention.confidence * 100) : 0}%
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        {distractedParticipants.length > 0 && (
+                          <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded">
+                            <div className="flex items-center space-x-1 mb-1">
+                              <AlertTriangle className="h-3 w-3 text-orange-500" />
+                              <span className="text-xs font-medium text-orange-700">Distracted Users</span>
+                            </div>
+                            {distractedParticipants.map((participant, index) => (
+                              <div key={index} className="text-xs text-orange-600">
+                                {participant.name} ({Math.round(participant.confidence * 100)}%)
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

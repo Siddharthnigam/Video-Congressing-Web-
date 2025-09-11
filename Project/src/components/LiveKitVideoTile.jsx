@@ -21,9 +21,10 @@ const LiveKitVideoTile = ({
       if (isLocal) {
         videoTrack = localVideoTrack;
       } else {
-        // For remote participants, get video track
+        // For remote participants, prioritize screen share, then camera
+        const screenPublication = Array.from(participant.trackPublications.values()).find(pub => pub.source === 'screen_share' && pub.isSubscribed);
         const videoPublication = Array.from(participant.trackPublications.values()).find(pub => pub.kind === 'video' && pub.isSubscribed);
-        videoTrack = videoPublication?.track;
+        videoTrack = screenPublication?.track || videoPublication?.track;
         // Get audio track for remote participants
         const audioPublication = Array.from(participant.trackPublications.values()).find(pub => pub.kind === 'audio' && pub.isSubscribed);
         audioTrack = audioPublication?.track;
@@ -87,7 +88,9 @@ const LiveKitVideoTile = ({
 
   const hasVideo = isLocal ? 
     (localVideoTrack && !localVideoTrack.isMuted) : 
-    Array.from(participant.trackPublications.values()).some(pub => pub.kind === 'video' && pub.isSubscribed && pub.track && !pub.isMuted);
+    Array.from(participant.trackPublications.values()).some(pub => 
+      (pub.kind === 'video' || pub.source === 'screen_share') && pub.isSubscribed && pub.track && !pub.isMuted
+    );
   const isMuted = isLocal ? 
     !participant.isMicrophoneEnabled : 
     !participant.isMicrophoneEnabled;
